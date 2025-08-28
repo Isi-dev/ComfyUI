@@ -150,6 +150,7 @@ class BaseModel(torch.nn.Module):
         logging.debug("adm {}".format(self.adm_channels))
         self.memory_usage_factor = model_config.memory_usage_factor
         self.memory_usage_factor_conds = ()
+        self.memory_usage_shape_process = {}
 
     def apply_model(self, x, t, c_concat=None, c_crossattn=None, control=None, transformer_options={}, **kwargs):
         return comfy.patcher_extension.WrapperExecutor.new_class_executor(
@@ -350,8 +351,15 @@ class BaseModel(torch.nn.Module):
         input_shapes = [input_shape]
         for c in self.memory_usage_factor_conds:
             shape = cond_shapes.get(c, None)
-            if shape is not None and len(shape) > 0:
-                input_shapes += shape
+            if shape is not None:
+                if c in self.memory_usage_shape_process:
+                    out = []
+                    for s in shape:
+                        out.append(self.memory_usage_shape_process[c](s))
+                    shape = out
+
+                if len(shape) > 0:
+                    input_shapes += shape
 
         if comfy.model_management.xformers_enabled() or comfy.model_management.pytorch_attention_flash_attention():
             dtype = self.get_dtype()
@@ -1199,6 +1207,42 @@ class WAN21_Camera(WAN21):
         camera_conditions = kwargs.get("camera_conditions", None)
         if camera_conditions is not None:
             out['camera_conditions'] = comfy.conds.CONDRegular(camera_conditions)
+        return out
+
+class WAN22_S2V(WAN21):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super(WAN21, self).__init__(model_config, model_type, device=device, unet_model=comfy.ldm.wan.model.WanModel_S2V)
+        self.memory_usage_factor_conds = ("reference_latent", "reference_motion")
+        self.memory_usage_shape_process = {"reference_motion": lambda shape: [shape[0], shape[1], 1.5, shape[-2], shape[-1]]}
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        audio_embed = kwargs.get("audio_embed", None)
+        if audio_embed is not None:
+            out['audio_embed'] = comfy.conds.CONDRegular(audio_embed)
+
+        reference_latents = kwargs.get("reference_latents", None)
+        if reference_latents is not None:
+            out['reference_latent'] = comfy.conds.CONDRegular(self.process_latent_in(reference_latents[-1]))
+
+        reference_motion = kwargs.get("reference_motion", None)
+        if reference_motion is not None:
+            out['reference_motion'] = comfy.conds.CONDRegular(self.process_latent_in(reference_motion))
+
+        control_video = kwargs.get("control_video", None)
+        if control_video is not None:
+            out['control_video'] = comfy.conds.CONDRegular(self.process_latent_in(control_video))
+        return out
+
+    def extra_conds_shapes(self, **kwargs):
+        out = {}
+        ref_latents = kwargs.get("reference_latents", None)
+        if ref_latents is not None:
+            out['reference_latent'] = list([1, 16, sum(map(lambda a: math.prod(a.size()), ref_latents)) // 16])
+
+        reference_motion = kwargs.get("reference_motion", None)
+        if reference_motion is not None:
+            out['reference_motion'] = reference_motion.shape
         return out
 
 class WAN22(BaseModel):
