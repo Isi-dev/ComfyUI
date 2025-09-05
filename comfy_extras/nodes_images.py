@@ -17,7 +17,7 @@ import torch
 import comfy.utils
 
 from comfy.comfy_types import FileLocator, IO
-# from server import PromptServer
+from server import PromptServer
 
 MAX_RESOLUTION = nodes.MAX_RESOLUTION
 
@@ -578,8 +578,8 @@ class GetImageSize:
         batch_size = image.shape[0]
 
         # Send progress text to display size on the node
-        # if unique_id:
-        #     PromptServer.instance.send_progress_text(f"width: {width}, height: {height}\n batch size: {batch_size}", unique_id)
+        if unique_id:
+            PromptServer.instance.send_progress_text(f"width: {width}, height: {height}\n batch size: {batch_size}", unique_id)
 
         return width, height, batch_size
 
