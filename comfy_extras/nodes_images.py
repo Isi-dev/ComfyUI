@@ -9,7 +9,7 @@ import re
 import torch
 import comfy.utils
 
-from server import PromptServer
+# from server import PromptServer
 from comfy_api.latest import ComfyExtension, IO, UI
 from typing_extensions import override
 
@@ -518,8 +518,8 @@ class GetImageSize(IO.ComfyNode):
         batch_size = image.shape[0]
 
         # Send progress text to display size on the node
-        if cls.hidden.unique_id:
-            PromptServer.instance.send_progress_text(f"width: {width}, height: {height}\n batch size: {batch_size}", cls.hidden.unique_id)
+        # if cls.hidden.unique_id:
+        #     PromptServer.instance.send_progress_text(f"width: {width}, height: {height}\n batch size: {batch_size}", cls.hidden.unique_id)
 
         return IO.NodeOutput(width, height, batch_size)
 
